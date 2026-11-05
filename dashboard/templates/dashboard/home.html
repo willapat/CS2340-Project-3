@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block title %}Admin · Alert Assist{% endblock %}
+{% block content %}
+  <h1>Admin Dashboard</h1>
+  <ul>
+    <li><a href="{% url 'dashboard:knowledge_base' %}">Knowledge base</a> (US-12)</li>
+    <li><a href="{% url 'dashboard:monitoring' %}">Monitoring</a> (US-13)</li>
+    <li><a href="{% url 'dashboard:usage_logs' %}">Usage logs</a> (US-14)</li>
+  </ul>
+{% endblock %}

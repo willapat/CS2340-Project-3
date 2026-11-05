@@ -1,0 +1,19 @@
+# Replace @<name>-github with real GitHub usernames.
+/rag/types.py           @will-github @ryon-github @max-github @ayan-github @zane-github
+/dashboard/models.py    @ryon-github @ayan-github
+/config/               @will-github
+/deploy/               @will-github
+/rag/ingestion/         @ryon-github
+/rag/dataset.py         @ryon-github
+/rag/vectorstore.py     @ryon-github
+/rag/preprocessing.py   @max-github
+/rag/retrieval.py       @max-github
+/rag/llm.py             @max-github
+/rag/pipeline.py        @max-github
+/evaluation/            @max-github
+/rag/prompts.py         @will-github
+/rag/citations.py       @zane-github
+/chat/                  @ayan-github
+/chat/static/chat/sources.*  @zane-github
+/alerts/                @will-github @ayan-github
+/dashboard/             @zane-github @ayan-github @ryon-github

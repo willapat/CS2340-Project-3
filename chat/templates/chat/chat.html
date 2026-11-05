@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% load static %}
+{# US-05 (Ayan) owns this page. US-07 (Zane) owns sources.js/sources.css. #}
+{% block title %}Chat · Alert Assist{% endblock %}
+{% block extra_head %}
+  <link rel="stylesheet" href="{% static 'chat/chat.css' %}">
+  <link rel="stylesheet" href="{% static 'chat/sources.css' %}">
+{% endblock %}
+{% block content %}
+  <div class="placeholder-banner">PLACEHOLDER - replace in US-05/06/07</div>
+  <h1>Ask Alert Assist</h1>
+  <div id="chat-log" class="chat-log" aria-live="polite"></div>
+  <form id="chat-form" class="chat-form" data-api-url="{% url 'chat:chat_api' %}">
+    {% csrf_token %}
+    <input id="chat-input" name="question" type="text" placeholder="Ask about your jurisdiction's alert protocols..." autocomplete="off" required>
+    <button type="submit">Send</button>
+  </form>
+{% endblock %}
+{% block extra_js %}
+  <script src="{% static 'chat/sources.js' %}"></script>
+  <script src="{% static 'chat/chat.js' %}"></script>
+{% endblock %}

@@ -1,0 +1,8 @@
+/* US-05 (Ayan): chat page styles. */
+.chat-log { min-height: 300px; background: #fff; border: 1px solid #ddd; border-radius: 6px; padding: 1rem; margin-bottom: 1rem; }
+.msg { margin: 0.5rem 0; padding: 0.5rem 0.75rem; border-radius: 6px; }
+.msg-user { background: #e7eefb; }
+.msg-assistant { background: #f1f1f1; }
+.msg-error { background: #fde2e2; }
+.chat-form { display: flex; gap: 0.5rem; }
+.chat-form input { flex: 1; padding: 0.5rem; }

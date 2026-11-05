@@ -1,0 +1,25 @@
+{% load static %}<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Alert Assist{% endblock %}</title>
+  <link rel="stylesheet" href="{% static 'css/base.css' %}">
+  {% block extra_head %}{% endblock %}
+</head>
+<body>
+  <header class="site-header">
+    <a class="brand" href="{% url 'chat:chat_page' %}">Alert Assist</a>
+    <nav>
+      <a href="{% url 'chat:chat_page' %}">Chat</a>
+      <a href="{% url 'alerts:conditions' %}">Alert Recommendation</a>
+      <a href="{% url 'alerts:messages' %}">Alert Messages</a>
+      <a href="{% url 'dashboard:home' %}">Admin</a>
+    </nav>
+  </header>
+  <main class="container">
+    {% block content %}{% endblock %}
+  </main>
+  {% block extra_js %}{% endblock %}
+</body>
+</html>
