@@ -72,6 +72,10 @@ class VectorStore(ABC):
     def query(self, text: str, k: int = 5) -> list[RetrievedChunk]: ...
 
     @abstractmethod
+    def delete(self, doc_id: str) -> None:
+        """Remove every chunk belonging to `doc_id` (e.g. before re-adding an updated document)."""
+
+    @abstractmethod
     def clear(self) -> None: ...
 
 
