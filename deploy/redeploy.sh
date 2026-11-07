@@ -5,7 +5,7 @@
 set -euo pipefail
 
 git pull --ff-only
-pip install -q -r requirements.txt
+pip install -q --no-cache-dir --no-deps -r deploy/requirements-pythonanywhere.txt
 python manage.py migrate --noinput
 python manage.py collectstatic --noinput
 python manage.py check --deploy
