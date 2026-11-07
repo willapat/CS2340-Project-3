@@ -1,6 +1,6 @@
 # Deployment: PythonAnywhere (US-01, Will)
 
-Live site: `https://<username>.pythonanywhere.com` (TODO: fill in once it's live)
+Live site: https://willpat.pythonanywhere.com (TODO: confirm once it's live)
 
 ## First-time setup
 In a PythonAnywhere **Bash console**:
@@ -8,7 +8,7 @@ In a PythonAnywhere **Bash console**:
 git clone https://github.com/willapat/CS2340-Project-3.git
 cd CS2340-Project-3
 mkvirtualenv --python=python3.11 alert-assist     # later: `workon alert-assist`
-pip install -r requirements.txt
+pip install --no-cache-dir --no-deps -r deploy/requirements-pythonanywhere.txt
 python -c "import sqlite3; print(sqlite3.sqlite_version)"   # need >= 3.35 for ChromaDB
 python -c "import chromadb; print('chromadb ok')"            # if this fails on sqlite: pip install pysqlite3-binary
 cp .env.example .env
@@ -50,7 +50,11 @@ workon alert-assist && cd ~/CS2340-Project-3 && bash deploy/redeploy.sh
 
 ## Known limits to watch
 - **SQLite ≥ 3.35** for ChromaDB (see the check above; `pysqlite3-binary` is the fallback, and `config/settings.py` picks it up automatically).
-- **Disk quota:** chromadb's dependencies are large. Check with `du -sh ~/.virtualenvs/alert-assist`.
+- **Disk quota (512 MB free):** the full `requirements.txt` is ~530 MB and doesn't fit. The server uses
+  `deploy/requirements-pythonanywhere.txt` instead (~250 MB), which drops chromadb extras we don't use
+  (kubernetes, onnxruntime, tokenizers, uvicorn). **So Chroma's built-in local embedder doesn't work on the
+  server**; production needs an API embedder passed as `embed=` to `ChromaVectorStore`. Always install
+  with `--no-cache-dir`, and check usage with `du -sh ~/.virtualenvs/alert-assist ~/.cache`.
 - **Outbound internet:** free accounts can only reach whitelisted domains. That affects the LLM API, URL ingestion (US-02), and the first-run download of Chroma's default embedding model (US-04).
 - **Free web apps expire** unless you click "Run until 3 months from today" in the Web tab.
 - Error logs: Web tab → **Error log**.
