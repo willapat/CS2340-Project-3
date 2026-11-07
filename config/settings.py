@@ -7,9 +7,18 @@ from the environment with os.getenv in your own module. Add them to
 .env.example so teammates know they exist.
 """
 import os
+import sys
 from pathlib import Path
 
 from dotenv import load_dotenv
+
+# ChromaDB needs SQLite >= 3.35. If the host's built-in sqlite3 is older (possible on
+# PythonAnywhere), `pip install pysqlite3-binary` and this swaps it in. No-op otherwise.
+try:
+    __import__("pysqlite3")
+    sys.modules["sqlite3"] = sys.modules.pop("pysqlite3")
+except ImportError:
+    pass
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 load_dotenv(BASE_DIR / ".env")
@@ -39,6 +48,20 @@ if not SECRET_KEY:
         raise RuntimeError("DJANGO_SECRET_KEY must be set when DJANGO_DEBUG is false.")
 
 ALLOWED_HOSTS = env_list("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1")
+
+# --- Production security (US-01) ---------------------------------------------
+# Active only when DEBUG is off. PythonAnywhere terminates HTTPS at its proxy and
+# sets X-Forwarded-Proto, so Django trusts that header to know a request was HTTPS.
+if not DEBUG:
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+    SECURE_SSL_REDIRECT = env_bool("DJANGO_SECURE_SSL_REDIRECT", True)
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SECURE_CONTENT_TYPE_NOSNIFF = True
+    SECURE_REFERRER_POLICY = "same-origin"
+    # HSTS makes browsers refuse plain HTTP for this domain. Leave at 0 until HTTPS is
+    # confirmed working, then raise it (e.g. 3600, later 31536000).
+    SECURE_HSTS_SECONDS = int(env_str("DJANGO_SECURE_HSTS_SECONDS", "0"))
 
 INSTALLED_APPS = [
     "django.contrib.admin",
