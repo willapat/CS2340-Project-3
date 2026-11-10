@@ -160,5 +160,6 @@ def answer_question(
             "grounded": bool(cited),
             "retrieved_count": len(passages),
             "cited_count": len(cited),
+            "model": getattr(llm, "last_model", None),
         },
     )
