@@ -12,7 +12,7 @@ import pytest
 from django.urls import reverse
 
 from rag import pipeline
-from rag.llm import ClaudeLLM, LLMError
+from rag.llm import GeminiLLM, LLMError
 from rag.pipeline import NO_ANSWER_TEXT, NOT_FOUND_TOKEN, SYSTEM_PROMPT, UNCITED_WARNING, answer_question
 from rag.preprocessing import preprocess_document
 from rag.retrieval import retrieve
@@ -190,41 +190,54 @@ def test_end_to_end_with_real_preprocessing_and_vector_store(tmp_path):
     assert "library opens" not in llm.calls[0]["prompt"]
 
 
-# --- Claude provider (SDK mocked) and the /api/chat endpoint --------------------------------
+# --- Gemini provider (SDK mocked) and the /api/chat endpoint --------------------------------
 
 
-class FakeMessages:
+class FakeModels:
     def __init__(self, response):
         self.response, self.kwargs = response, None
 
-    def create(self, **kwargs):
+    def generate_content(self, **kwargs):
         self.kwargs = kwargs
         return self.response
 
 
-def fake_client(stop_reason="end_turn", text="Answer [1]."):
-    blocks = [SimpleNamespace(type="thinking", thinking=""), SimpleNamespace(type="text", text=text)]
-    messages = FakeMessages(SimpleNamespace(stop_reason=stop_reason, content=blocks))
-    return SimpleNamespace(beta=SimpleNamespace(messages=messages)), messages
+def fake_gemini(text="Answer [1].", finish_reason="STOP", block_reason=None):
+    candidate = SimpleNamespace(finish_reason=SimpleNamespace(name=finish_reason))
+    response = SimpleNamespace(
+        text=text, candidates=[candidate], prompt_feedback=SimpleNamespace(block_reason=block_reason)
+    )
+    models = FakeModels(response)
+    return SimpleNamespace(models=models), models
 
 
-def test_claude_llm_sends_system_prompt_and_returns_text(monkeypatch):
-    monkeypatch.setenv("LLM_MODEL", "claude-test-model")
-    client, messages = fake_client()
+def test_gemini_llm_sends_system_prompt_and_returns_text(monkeypatch):
+    monkeypatch.setenv("LLM_MODEL", "gemini-test-model")
+    client, models = fake_gemini()
 
-    text = ClaudeLLM(client=client).generate("the prompt", system="the rules")
+    text = GeminiLLM(client=client).generate("the prompt", system="the rules")
 
     assert text == "Answer [1]."
-    assert messages.kwargs["model"] == "claude-test-model"
-    assert messages.kwargs["system"] == "the rules"
-    assert messages.kwargs["messages"] == [{"role": "user", "content": "the prompt"}]
+    assert models.kwargs["model"] == "gemini-test-model"
+    assert models.kwargs["contents"] == "the prompt"
+    assert models.kwargs["config"].system_instruction == "the rules"
 
 
-def test_claude_llm_refusal_raises():
-    client, _ = fake_client(stop_reason="refusal", text="")
+@pytest.mark.parametrize(
+    "kwargs", [{"finish_reason": "SAFETY", "text": ""}, {"block_reason": "SAFETY", "text": None}, {"text": "  "}]
+)
+def test_gemini_llm_blocked_or_empty_raises(kwargs):
+    client, _ = fake_gemini(**kwargs)
 
     with pytest.raises(LLMError):
-        ClaudeLLM(client=client).generate("p")
+        GeminiLLM(client=client).generate("p")
+
+
+def test_gemini_llm_without_key_raises_llm_error(monkeypatch):
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+
+    with pytest.raises(LLMError, match="GEMINI_API_KEY"):
+        GeminiLLM().generate("p")
 
 
 def test_chat_api_returns_grounded_answer(client, monkeypatch, store):
