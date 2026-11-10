@@ -71,3 +71,25 @@ def test_site_serves_pages():
     client = Client()
     assert client.get("/").status_code == 200
     assert client.get("/dashboard/").status_code == 200
+
+
+DEV_ONLY = {"pytest", "pytest-django", "ruff"}
+
+
+def _pinned(path):
+    pins = {}
+    for line in (ROOT / path).read_text().splitlines():
+        line = line.split("#")[0].strip()
+        if "==" in line:
+            name, version = line.split("==", 1)
+            pins[name.strip().lower().replace("_", "-")] = version.strip()
+    return pins
+
+
+def test_server_requirements_cover_every_runtime_package():
+    """PythonAnywhere installs deploy/requirements-pythonanywhere.txt with --no-deps, so any runtime
+    package added to requirements.txt must also be pinned there (same version), or the live site breaks."""
+    full = _pinned("requirements.txt")
+    server = _pinned("deploy/requirements-pythonanywhere.txt")
+    missing = {name: v for name, v in full.items() if name not in DEV_ONLY and server.get(name) != v}
+    assert not missing, f"Add these to deploy/requirements-pythonanywhere.txt (with their dependencies): {missing}"
