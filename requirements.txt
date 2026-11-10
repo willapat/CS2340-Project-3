@@ -1,6 +1,7 @@
 Django==5.2.19
 python-dotenv==1.2.4
 chromadb==1.5.9
+anthropic==2.7.0
 pytest==9.2.0
 pytest-django==4.14.0
 ruff==0.17.4

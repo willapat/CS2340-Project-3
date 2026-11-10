@@ -2,16 +2,17 @@
 
 Shared endpoint for US-05 (Ayan, request/response handling), US-06 (Max,
 grounded answer), and US-07 (Zane, sources payload).
-
-WALKING SKELETON: currently returns a hard-coded placeholder Answer.
-PLACEHOLDER - replace in US-05/06/07.
 """
 import json
+import logging
 
 from django.http import JsonResponse
 from django.views.decorators.http import require_POST
 
-from rag.placeholder import placeholder_answer
+from rag.llm import LLMError
+from rag.pipeline import answer_question
+
+logger = logging.getLogger(__name__)
 
 
 @require_POST
@@ -25,6 +26,12 @@ def chat_api(request):
     if not question:
         return JsonResponse({"error": "Field 'question' is required."}, status=400)
 
-    # PLACEHOLDER - replace with rag.pipeline.answer_question(question) in US-05/06/07.
-    answer = placeholder_answer(question)
+    try:
+        answer = answer_question(question)
+    except LLMError as e:
+        logger.warning("LLM failure: %s", e)
+        return JsonResponse({"error": f"{e} Please try again."}, status=503)
+    except Exception:
+        logger.exception("Unexpected error answering a question")
+        return JsonResponse({"error": "Something went wrong while answering. Please try again."}, status=500)
     return JsonResponse(answer.to_dict())
