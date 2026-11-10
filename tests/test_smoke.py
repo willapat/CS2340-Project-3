@@ -5,7 +5,11 @@ import pytest
 from django.urls import reverse
 
 
-def test_chat_api_returns_placeholder_answer(client):
+def test_chat_api_returns_answer(client, monkeypatch):
+    from rag.types import Answer
+
+    # The real pipeline needs a knowledge base and an API key; it is tested in tests/rag/test_us06_grounded.py.
+    monkeypatch.setattr("chat.api.answer_question", lambda q: Answer(text=f"Answer to {q}"))
     resp = client.post(
         reverse("chat:chat_api"),
         data=json.dumps({"question": "What alert level for a flash flood?"}),
