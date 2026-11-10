@@ -131,7 +131,7 @@ def answer_question(
 ) -> Answer:
     """Answer `question` grounded in official documents. US-06 (Max).
 
-    `store` and `llm` default to the app's knowledge base and Claude; tests pass fakes.
+    `store` and `llm` default to the app's knowledge base and Gemini; tests pass fakes.
     Raises ValueError for an empty question and rag.llm.LLMError if the LLM call fails.
     """
     started = time.perf_counter()
@@ -160,5 +160,6 @@ def answer_question(
             "grounded": bool(cited),
             "retrieved_count": len(passages),
             "cited_count": len(cited),
+            "model": getattr(llm, "last_model", None),
         },
     )

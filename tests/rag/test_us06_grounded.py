@@ -12,7 +12,9 @@ import pytest
 from django.urls import reverse
 
 from rag import pipeline
-from rag.llm import ClaudeLLM, LLMError
+from google.genai import errors as gemini_errors
+
+from rag.llm import GeminiLLM, LLMError
 from rag.pipeline import NO_ANSWER_TEXT, NOT_FOUND_TOKEN, SYSTEM_PROMPT, UNCITED_WARNING, answer_question
 from rag.preprocessing import preprocess_document
 from rag.retrieval import retrieve
@@ -122,7 +124,7 @@ def test_sources_are_only_cited_passages_renumbered_to_match(store):
 
     assert answer.text == "The County Judge decides [1]. Warn above 12 feet [2][1]. Bogus claim."
     assert [s.chunk.chunk_id for s in answer.sources] == ["eop:1", "eop:0"]  # [n] == sources[n-1]
-    assert answer.metadata == {"grounded": True, "retrieved_count": 3, "cited_count": 2}
+    assert answer.metadata == {"grounded": True, "retrieved_count": 3, "cited_count": 2, "model": None}
     assert answer.prompt_type == "grounded_qa"
     assert answer.latency_ms >= 0
 
@@ -190,41 +192,163 @@ def test_end_to_end_with_real_preprocessing_and_vector_store(tmp_path):
     assert "library opens" not in llm.calls[0]["prompt"]
 
 
-# --- Claude provider (SDK mocked) and the /api/chat endpoint --------------------------------
+# --- Gemini provider (SDK mocked) and the /api/chat endpoint --------------------------------
 
 
-class FakeMessages:
-    def __init__(self, response):
-        self.response, self.kwargs = response, None
-
-    def create(self, **kwargs):
-        self.kwargs = kwargs
-        return self.response
+def gemini_response(text="Answer [1].", finish_reason="STOP", block_reason=None):
+    candidate = SimpleNamespace(finish_reason=SimpleNamespace(name=finish_reason))
+    return SimpleNamespace(text=text, candidates=[candidate], prompt_feedback=SimpleNamespace(block_reason=block_reason))
 
 
-def fake_client(stop_reason="end_turn", text="Answer [1]."):
-    blocks = [SimpleNamespace(type="thinking", thinking=""), SimpleNamespace(type="text", text=text)]
-    messages = FakeMessages(SimpleNamespace(stop_reason=stop_reason, content=blocks))
-    return SimpleNamespace(beta=SimpleNamespace(messages=messages)), messages
+class FakeModels:
+    """Scripted per-model results: a response object, or an exception to raise."""
+
+    def __init__(self, script):
+        self.script, self.calls = script, []
+
+    def generate_content(self, *, model, contents, config):
+        self.calls.append({"model": model, "contents": contents, "config": config})
+        result = self.script.get(model, gemini_response())
+        if isinstance(result, Exception):
+            raise result
+        return result
 
 
-def test_claude_llm_sends_system_prompt_and_returns_text(monkeypatch):
-    monkeypatch.setenv("LLM_MODEL", "claude-test-model")
-    client, messages = fake_client()
-
-    text = ClaudeLLM(client=client).generate("the prompt", system="the rules")
-
-    assert text == "Answer [1]."
-    assert messages.kwargs["model"] == "claude-test-model"
-    assert messages.kwargs["system"] == "the rules"
-    assert messages.kwargs["messages"] == [{"role": "user", "content": "the prompt"}]
+def fake_gemini(**script):
+    """fake_gemini(m1=..., m2=...) -> (client, models); unknown models answer normally."""
+    models = FakeModels({name.replace("_", "-"): result for name, result in script.items()})
+    return SimpleNamespace(models=models), models
 
 
-def test_claude_llm_refusal_raises():
-    client, _ = fake_client(stop_reason="refusal", text="")
+def rate_limited(daily=False, delay=None):
+    detail = [{"quotaId": "GenerateRequestsPerDayPerProjectPerModel-FreeTier"}] if daily else []
+    if delay:
+        detail.append({"@type": "type.googleapis.com/google.rpc.RetryInfo", "retryDelay": f"{delay}s"})
+    return gemini_errors.ClientError(429, {"error": {"code": 429, "status": "RESOURCE_EXHAUSTED", "details": detail}})
+
+
+class FakeClock:
+    def __init__(self):
+        self.now = 1000.0
+
+    def __call__(self):
+        return self.now
+
+
+def test_gemini_llm_sends_system_prompt_and_returns_text():
+    client, models = fake_gemini()
+
+    llm = GeminiLLM(models=["m1"], client=client)
+    text = llm.generate("the prompt", system="the rules")
+
+    assert text == "Answer [1]." and llm.last_model == "m1"
+    call = models.calls[0]
+    assert call["model"] == "m1" and call["contents"] == "the prompt"
+    assert call["config"].system_instruction == "the rules"
+
+
+def test_gemini_models_come_from_env(monkeypatch):
+    monkeypatch.setenv("LLM_MODELS", " a , b ,c")
+
+    assert GeminiLLM(client=object()).models == ["a", "b", "c"]
+
+
+def test_falls_back_to_next_model_when_rate_limited():
+    client, models = fake_gemini(m1=rate_limited(), m2=gemini_response("From m2 [1]."))
+
+    llm = GeminiLLM(models=["m1", "m2", "m3"], client=client)
+
+    assert llm.generate("p") == "From m2 [1]."
+    assert llm.last_model == "m2"
+    assert [c["model"] for c in models.calls] == ["m1", "m2"]
+
+
+@pytest.mark.parametrize(
+    "failure",
+    [
+        gemini_errors.ClientError(404, {"error": {"code": 404, "status": "NOT_FOUND"}}),
+        gemini_errors.ServerError(503, {"error": {"code": 503, "status": "UNAVAILABLE"}}),
+        gemini_errors.ServerError(500, {"error": {"code": 500, "status": "INTERNAL"}}),
+        gemini_response(text=""),
+    ],
+    ids=["not-found", "overloaded", "internal", "empty"],
+)
+def test_falls_back_on_unavailable_overloaded_or_empty(failure):
+    client, _ = fake_gemini(m1=failure)
+
+    llm = GeminiLLM(models=["m1", "m2"], client=client)
+
+    assert llm.generate("p") == "Answer [1]." and llm.last_model == "m2"
+
+
+def test_rate_limited_model_is_skipped_until_cooldown_ends():
+    clock = FakeClock()
+    client, models = fake_gemini(m1=rate_limited(delay=40))
+    llm = GeminiLLM(models=["m1", "m2"], client=client, clock=clock)
+
+    llm.generate("p")
+    llm.generate("p")
+    assert [c["model"] for c in models.calls] == ["m1", "m2", "m2"]  # m1 skipped the second time
+
+    clock.now += 41
+    models.script["m1"] = gemini_response("m1 is back [1].")
+    assert llm.generate("p") == "m1 is back [1]." and llm.last_model == "m1"
+
+
+def test_daily_quota_cools_down_for_an_hour():
+    clock = FakeClock()
+    client, _ = fake_gemini(m1=rate_limited(daily=True))
+    llm = GeminiLLM(models=["m1", "m2"], client=client, clock=clock)
+
+    llm.generate("p")
+    clock.now += 600
+    assert llm.available_models() == ["m2"]
+    clock.now += 3001
+    assert llm.available_models() == ["m1", "m2"]
+
+
+def test_all_models_rate_limited_raises_clear_error():
+    client, _ = fake_gemini(m1=rate_limited(), m2=rate_limited())
+    llm = GeminiLLM(models=["m1", "m2"], client=client)
+
+    with pytest.raises(LLMError, match="rate-limited"):
+        llm.generate("p")
+    with pytest.raises(LLMError, match="rate-limited"):  # both cooling down: fails fast, no calls
+        llm.generate("p")
+
+
+@pytest.mark.parametrize(
+    "failure",
+    [
+        gemini_errors.ClientError(400, {"error": {"code": 400, "message": "API key not valid."}}),
+        gemini_errors.ClientError(403, {"error": {"code": 403, "status": "PERMISSION_DENIED"}}),
+        gemini_response(text="", finish_reason="SAFETY"),
+        gemini_response(text=None, block_reason="SAFETY"),
+    ],
+    ids=["bad-key", "forbidden", "safety-finish", "safety-prompt"],
+)
+def test_does_not_fall_back_on_bad_key_or_safety_block(failure):
+    client, models = fake_gemini(m1=failure)
 
     with pytest.raises(LLMError):
-        ClaudeLLM(client=client).generate("p")
+        GeminiLLM(models=["m1", "m2"], client=client).generate("p")
+    assert [c["model"] for c in models.calls] == ["m1"]
+
+
+def test_gemini_llm_without_key_raises_llm_error(monkeypatch):
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+
+    with pytest.raises(LLMError, match="GEMINI_API_KEY"):
+        GeminiLLM(models=["m1"]).generate("p")
+
+
+def test_answer_metadata_records_which_model_answered(store):
+    class ModelLLM(FakeLLM):
+        last_model = "gemini-test"
+
+    answer = answer_question("When?", store=store, llm=ModelLLM("Warn above 12 feet [1]."))
+
+    assert answer.metadata["model"] == "gemini-test"
 
 
 def test_chat_api_returns_grounded_answer(client, monkeypatch, store):
