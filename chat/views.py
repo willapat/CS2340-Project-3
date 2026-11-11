@@ -12,9 +12,20 @@ User story:
 TODO(US-05): Acceptance criteria: see docs/stories.md#us-05 (Product Owner to fill in).
 Front end: chat/templates/chat/chat.html, chat/static/chat/chat.js, chat.css.
 """
+
 from django.shortcuts import render
-
-
+ 
+from chat.api import MAX_QUESTION_LENGTH
+EXAMPLE_QUESTIONS = [
+    "What alert level should I use for a flash flood warning?",
+    "Who has authority to issue an evacuation order?",
+    "Which zones need to be notified for a wildfire near the county line?",
+]
 def chat_page(request):
     """Render the chat page. (Skeleton: works today; Ayan owns the layout.)"""
-    return render(request, "chat/chat.html")
+    return render(request, "chat/chat.html",
+        {
+            "example_questions": EXAMPLE_QUESTIONS,
+            "max_question_length": MAX_QUESTION_LENGTH,
+        },
+    )

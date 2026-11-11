@@ -1,8 +1,32 @@
 /* US-05 (Ayan): chat page styles. */
-.chat-log { min-height: 300px; background: #fff; border: 1px solid #ddd; border-radius: 6px; padding: 1rem; margin-bottom: 1rem; }
-.msg { margin: 0.5rem 0; padding: 0.5rem 0.75rem; border-radius: 6px; }
-.msg-user { background: #e7eefb; }
+.chat-header { display: flex; justify-content: space-between; align-items: center; }
+.chat-clear { background: none; border: 1px solid #bbb; border-radius: 4px; padding: 0.35rem 0.75rem; cursor: pointer; }
+.chat-clear:hover { background: #eee; }
+
+.chat-log { height: 60vh; min-height: 300px; overflow-y: auto; background: #fff; border: 1px solid #ddd; border-radius: 6px; padding: 1rem; margin-bottom: 1rem; }
+
+.chat-empty { color: #555; }
+.chat-examples-label { margin-bottom: 0.25rem; font-weight: 600; }
+.chat-examples { display: flex; flex-direction: column; gap: 0.5rem; align-items: flex-start; }
+.chat-example { background: #e7eefb; border: 1px solid #c5d4f3; border-radius: 16px; padding: 0.4rem 0.9rem; cursor: pointer; text-align: left; font: inherit; }
+.chat-example:hover { background: #d6e2f8; }
+
+.msg { margin: 0.5rem 0; padding: 0.6rem 0.85rem; border-radius: 8px; max-width: 85%; white-space: pre-wrap; word-wrap: break-word; }
+.msg-user { background: #13294b; color: #fff; margin-left: auto; }
 .msg-assistant { background: #f1f1f1; }
-.msg-error { background: #fde2e2; }
-.chat-form { display: flex; gap: 0.5rem; }
-.chat-form input { flex: 1; padding: 0.5rem; }
+.msg-error { background: #fde2e2; border: 1px solid #f3b4b4; }
+.msg-meta { margin-top: 0.35rem; font-size: 0.8rem; color: #666; }
+
+.msg-thinking .msg-text::after { content: ""; animation: chat-dots 1.2s steps(4, end) infinite; }
+@keyframes chat-dots {
+  0% { content: ""; } 25% { content: "."; } 50% { content: ".."; } 75% { content: "..."; }
+}
+
+.chat-form { display: flex; gap: 0.5rem; align-items: stretch; }
+.chat-form textarea { flex: 1; padding: 0.5rem; font: inherit; resize: vertical; border: 1px solid #bbb; border-radius: 4px; }
+.chat-form button { padding: 0 1.25rem; background: #13294b; color: #fff; border: none; border-radius: 4px; cursor: pointer; font: inherit; }
+.chat-form button:disabled { opacity: 0.6; cursor: wait; }
+
+.chat-hint { display: flex; justify-content: space-between; font-size: 0.8rem; color: #666; margin-top: 0.35rem; }
+
+.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
