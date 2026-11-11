@@ -7,14 +7,34 @@
   <link rel="stylesheet" href="{% static 'chat/sources.css' %}">
 {% endblock %}
 {% block content %}
-  <div class="placeholder-banner">PLACEHOLDER - replace in US-05/06/07</div>
-  <h1>Ask Alert Assist</h1>
-  <div id="chat-log" class="chat-log" aria-live="polite"></div>
+  <div class="chat-header">
+    <h1>Ask Alert Assist</h1>
+    <button id="chat-clear" type="button" class="chat-clear">Clear chat</button>
+  </div>
+
+  <div id="chat-log" class="chat-log" role="log" aria-live="polite" aria-label="Conversation">
+    <div id="chat-empty" class="chat-empty">
+      <p>Ask a question in plain English about your jurisdiction's alert protocols.</p>
+      <p class="chat-examples-label">Try one of these:</p>
+      <div class="chat-examples">
+        {% for q in example_questions %}
+          <button type="button" class="chat-example">{{ q }}</button>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
   <form id="chat-form" class="chat-form" data-api-url="{% url 'chat:chat_api' %}">
     {% csrf_token %}
-    <input id="chat-input" name="question" type="text" placeholder="Ask about your jurisdiction's alert protocols..." autocomplete="off" required>
-    <button type="submit">Send</button>
+    <label for="chat-input" class="visually-hidden">Your question</label>
+    <textarea id="chat-input" name="question" rows="2" maxlength="{{ max_question_length }}"
+              placeholder="Ask about your jurisdiction's alert protocols..." autocomplete="off" required></textarea>
+    <button id="chat-send" type="submit">Send</button>
   </form>
+  <div class="chat-hint">
+    <span>Enter to send · Shift+Enter for a new line</span>
+    <span id="chat-count">0 / {{ max_question_length }}</span>
+  </div>
 {% endblock %}
 {% block extra_js %}
   <script src="{% static 'chat/sources.js' %}"></script>
